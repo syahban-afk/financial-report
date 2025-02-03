@@ -10,10 +10,18 @@ const getFinances = async (req, res) => {
 };
 
 const createFinance = async (req, res) => {
-    const { title, amount, type } = req.body;
+    const { title, amount, type, category } = req.body;
 
-    if (!title || !amount || !type) {
+    if (!title || !amount || !type || !category) {
         return res.status(400).json({ message: 'Semua field harus diisi' });
+    }
+
+    if (!['income', 'expense'].includes(type)) {
+        return res.status(400).json({ message: 'Tipe harus income atau expense' });
+    }
+
+    if (!['salary', 'education', 'health', 'food', 'transportation', 'entertainment', 'utilities', 'others'].includes(category)) {
+        return res.status(400).json({ message: 'Kategori harus salary, food, transportation, entertainment, utilities, others' });
     }
 
     try {
@@ -22,6 +30,7 @@ const createFinance = async (req, res) => {
             title,
             amount,
             type,
+            category
         });
 
         res.status(201).json(finance);
@@ -100,7 +109,11 @@ const filterFinances = async (req, res) => {
         const filter = { user: req.user.id };
 
         if (type) {
-            filter.type = type;
+            if (['income', 'expense'].includes(type)) {
+                filter.type = type;
+            } else {
+                return res.status(400).json({ message: 'Tipe tidak valid. Gunakan "income" atau "expense"' });
+            }
         }
 
         if (month) {
@@ -127,4 +140,33 @@ const filterFinances = async (req, res) => {
     }
 };
 
-module.exports = { getFinances, createFinance, updateFinance, deleteFinance, getFinanceReport, filterFinances };
+const getCategoryStats = async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        const finances = await Finance.find({ user: userId });
+
+        const categoryStats = finances.reduce((acc, curr) => {
+            if (!acc[curr.category]) {
+                acc[curr.category] = { total: 0, count: 0 };
+            }
+            acc[curr.category].total += curr.amount;
+            acc[curr.category].count += 1;
+            return acc;
+        }, {});
+
+        res.status(200).json(categoryStats);
+    } catch (error) {
+        res.status(500).json({ message: 'Gagal mendapatkan statistik kategori' });
+    }
+};
+
+module.exports = {
+    getFinances,
+    createFinance,
+    updateFinance,
+    deleteFinance,
+    getFinanceReport,
+    filterFinances,
+    getCategoryStats,
+};
